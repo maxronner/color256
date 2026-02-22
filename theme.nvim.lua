@@ -238,5 +238,28 @@ create_theme({
     ["@constant.builtin"] = "Constant",
     ["@type.builtin"] = "Type",
 
-    ["@constructor.lua"] = {}
+    ["@constructor.lua"] = {},
+
+    -- fugitive
+    FugitiveblameHash = "Identifier",
+    FugitiveblameBoundary = "Keyword",
+    FugitiveblameUncommitted = "Comment",
+    FugitiveblameNotCommittedYet = "Comment",
+    FugitiveblameTime = "GreyFg3",
+    FugitiveblameLineNumber = "LineNr",
+    FugitiveblameOriginalFile = "Directory",
+    FugitiveblameOriginalLineNumber = "LineNr",
+    FugitiveblameDelimiter = "GreyFg1",
+    FugitiveblameShort = "FugitiveblameDelimiter",
+
+    -- gitsigns
+    GitSignsAdd = "Success",
+    GitSignsChange = "Warning",
+    GitSignsDelete = "Error",
+    GitSignsChangedelete = "GitSignsChange",
+    GitSignsTopdelete = "GitSignsDelete",
+    GitSignsUntracked = "GitSignsAdd",
+    GitSignsCurrentLineBlame = "Comment",
+    GitSignsAddPreview = "DiffAdd",
+    GitSignsDeletePreview = "DiffDelete",
 })
