@@ -7,31 +7,63 @@ import re
 import json
 import math
 
+
+def nearest_xterm_index(rgb):
+    r, g, b = rgb
+
+    def nearest_cube(v):
+        levels = [0, 95, 135, 175, 215, 255]
+        idx = min(range(6), key=lambda i: abs(levels[i] - v))
+        return idx, levels[idx]
+
+    ri, rc = nearest_cube(r)
+    gi, gc = nearest_cube(g)
+    bi, bc = nearest_cube(b)
+    cube_index = 16 + (36 * ri) + (6 * gi) + bi
+    cube_dist = (r - rc) ** 2 + (g - gc) ** 2 + (b - bc) ** 2
+
+    gray_candidates = [8 + 10 * i for i in range(24)]
+    g_idx = min(
+        range(24),
+        key=lambda i: (
+            abs(gray_candidates[i] - r)
+            + abs(gray_candidates[i] - g)
+            + abs(gray_candidates[i] - b)
+        ),
+    )
+    gv = gray_candidates[g_idx]
+    gray_index = 232 + g_idx
+    gray_dist = (r - gv) ** 2 + (g - gv) ** 2 + (b - gv) ** 2
+
+    return gray_index if gray_dist < cube_dist else cube_index
+
+
 def clamp(low, high, n):
     return max(low, min(high, n))
 
+
 def hex_to_rgb(hex_color):
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
 
 def rgb_to_hex(rgb):
     return f"{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
+
 def rgb_to_lab(rgb):
     r, g, b = (
         c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-            for c in (c / 255 for c in rgb)
+        for c in (c / 255 for c in rgb)
     )
     xyz = (
         (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047,
         (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.0,
-        (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883
+        (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883,
     )
-    fx, fy, fz = (
-        t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
-        for t in xyz
-    )
+    fx, fy, fz = (t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116 for t in xyz)
     return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
 
 def lab_to_rgb(lab):
     l, a, b = lab
@@ -39,15 +71,14 @@ def lab_to_rgb(lab):
     fx = a / 500 + fy
     fz = fy - b / 200
     x, y, z = (
-        t**3 if t**3 > 0.008856 else (t - 16/116) / 7.787
-        for t in (fx, fy, fz)
+        t**3 if t**3 > 0.008856 else (t - 16 / 116) / 7.787 for t in (fx, fy, fz)
     )
     x, y, z = x * 0.95047, y * 1.0, z * 1.08883
     r = x * 3.2406 + y * -1.5372 + z * -0.4986
     g = x * -0.9689 + y * 1.8758 + z * 0.0415
     b_lin = x * 0.0557 + y * -0.2040 + z * 1.0570
     r, g, b_lin = (
-        12.92 * c if c <= 0.0031308 else 1.055 * c**(1/2.4) - 0.055
+        12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
         for c in (r, g, b_lin)
     )
     r = clamp(0, 255, int(r * 255 + 0.5))
@@ -55,11 +86,14 @@ def lab_to_rgb(lab):
     b_rgb = clamp(0, 255, int(b_lin * 255 + 0.5))
     return (r, g, b_rgb)
 
+
 def _srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
+
 def _linear_to_srgb(c):
-    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1/2.4)) - 0.055
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
 
 def rgb_to_oklab(rgb):
     r_s, g_s, b_s = (x / 255.0 for x in rgb)
@@ -69,15 +103,16 @@ def rgb_to_oklab(rgb):
     m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
     s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
 
-    l_ = l ** (1/3)
-    m_ = m ** (1/3)
-    s_ = s ** (1/3)
+    l_ = l ** (1 / 3)
+    m_ = m ** (1 / 3)
+    s_ = s ** (1 / 3)
 
     L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
     a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
     b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
 
     return (L, a, b)
+
 
 def oklab_to_rgb(lab):
     L, a, b = lab
@@ -86,11 +121,11 @@ def oklab_to_rgb(lab):
     m_ = L - 0.1055613458 * a - 0.0638541728 * b
     s_ = L - 0.0894841775 * a - 1.2914855480 * b
 
-    l = l_ ** 3
-    m = m_ ** 3
-    s = s_ ** 3
+    l = l_**3
+    m = m_**3
+    s = s_**3
 
-    r_lin =  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+    r_lin = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
     g_lin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
     b_lin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
 
@@ -109,24 +144,43 @@ def _oklab_to_linear_srgb(L, a, b):
     l_ = L + 0.3963377774 * a + 0.2158037573 * b
     m_ = L - 0.1055613458 * a - 0.0638541728 * b
     s_ = L - 0.0894841775 * a - 1.2914855480 * b
-    l = l_ ** 3
-    m = m_ ** 3
-    s = s_ ** 3
-    r =  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+    l = l_**3
+    m = m_**3
+    s = s_**3
+    r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
     g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
     b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
     return (r, g, b)
 
+
 def _compute_max_saturation(a_, b_):
     if -1.88170328 * a_ - 0.80936493 * b_ > 1:
-        k0 = +1.19086277; k1 = +1.76576728; k2 = +0.59662641; k3 = +0.75515197; k4 = +0.56771245
-        wl = +4.0767416621; wm = -3.3077115913; ws = +0.2309699292
+        k0 = +1.19086277
+        k1 = +1.76576728
+        k2 = +0.59662641
+        k3 = +0.75515197
+        k4 = +0.56771245
+        wl = +4.0767416621
+        wm = -3.3077115913
+        ws = +0.2309699292
     elif 1.81444104 * a_ - 1.19445276 * b_ > 1:
-        k0 = +0.73956515; k1 = -0.45954404; k2 = +0.08285427; k3 = +0.12541070; k4 = +0.14503204
-        wl = -1.2684380046; wm = +2.6097574011; ws = -0.3413193965
+        k0 = +0.73956515
+        k1 = -0.45954404
+        k2 = +0.08285427
+        k3 = +0.12541070
+        k4 = +0.14503204
+        wl = -1.2684380046
+        wm = +2.6097574011
+        ws = -0.3413193965
     else:
-        k0 = +1.35733652; k1 = -0.00915799; k2 = -1.15130210; k3 = -0.50559606; k4 = +0.00692167
-        wl = -0.0041960863; wm = -0.7034186147; ws = +1.7076147010
+        k0 = +1.35733652
+        k1 = -0.00915799
+        k2 = -1.15130210
+        k3 = -0.50559606
+        k4 = +0.00692167
+        wl = -0.0041960863
+        wm = -0.7034186147
+        ws = +1.7076147010
 
     S = k0 + k1 * a_ + k2 * b_ + k3 * a_ * a_ + k4 * a_ * b_
 
@@ -150,20 +204,22 @@ def _compute_max_saturation(a_, b_):
     m_dS2 = 6.0 * k_m * k_m * m_
     s_dS2 = 6.0 * k_s * k_s * s_
 
-    f  = wl * l     + wm * m     + ws * s
-    f1 = wl * l_dS  + wm * m_dS  + ws * s_dS
+    f = wl * l + wm * m + ws * s
+    f1 = wl * l_dS + wm * m_dS + ws * s_dS
     f2 = wl * l_dS2 + wm * m_dS2 + ws * s_dS2
 
     S = S - f * f1 / (f1 * f1 - 0.5 * f * f2)
 
     return S
 
+
 def _find_cusp(a_, b_):
     S_cusp = _compute_max_saturation(a_, b_)
     rgb = _oklab_to_linear_srgb(1, S_cusp * a_, S_cusp * b_)
-    L_cusp = (1.0 / max(max(rgb[0], rgb[1]), max(rgb[2], 0.0))) ** (1/3)
+    L_cusp = (1.0 / max(max(rgb[0], rgb[1]), max(rgb[2], 0.0))) ** (1 / 3)
     C_cusp = L_cusp * S_cusp
     return (L_cusp, C_cusp)
+
 
 def _find_gamut_intersection(a_, b_, L1, C1, L0, cusp):
     cusp_L, cusp_C = cusp
@@ -202,23 +258,23 @@ def _find_gamut_intersection(a_, b_, L1, C1, L0, cusp):
         mdt2 = 6 * m_dt * m_dt * m_
         sdt2 = 6 * s_dt * s_dt * s_
 
-        r  =  4.0767416621 * l     - 3.3077115913 * m     + 0.2309699292 * s     - 1
-        r1 =  4.0767416621 * ldt   - 3.3077115913 * mdt   + 0.2309699292 * sdt
-        r2 =  4.0767416621 * ldt2  - 3.3077115913 * mdt2  + 0.2309699292 * sdt2
+        r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s - 1
+        r1 = 4.0767416621 * ldt - 3.3077115913 * mdt + 0.2309699292 * sdt
+        r2 = 4.0767416621 * ldt2 - 3.3077115913 * mdt2 + 0.2309699292 * sdt2
 
         u_r = r1 / (r1 * r1 - 0.5 * r * r2)
         t_r = -r * u_r
 
-        g  = -1.2684380046 * l     + 2.6097574011 * m     - 0.3413193965 * s     - 1
-        g1 = -1.2684380046 * ldt   + 2.6097574011 * mdt   - 0.3413193965 * sdt
-        g2 = -1.2684380046 * ldt2  + 2.6097574011 * mdt2  - 0.3413193965 * sdt2
+        g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s - 1
+        g1 = -1.2684380046 * ldt + 2.6097574011 * mdt - 0.3413193965 * sdt
+        g2 = -1.2684380046 * ldt2 + 2.6097574011 * mdt2 - 0.3413193965 * sdt2
 
         u_g = g1 / (g1 * g1 - 0.5 * g * g2)
         t_g = -g * u_g
 
-        b_  = -0.0041960863 * l     - 0.7034186147 * m     + 1.7076147010 * s     - 1
-        b1  = -0.0041960863 * ldt   - 0.7034186147 * mdt   + 1.7076147010 * sdt
-        b2  = -0.0041960863 * ldt2  - 0.7034186147 * mdt2  + 1.7076147010 * sdt2
+        b_ = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s - 1
+        b1 = -0.0041960863 * ldt - 0.7034186147 * mdt + 1.7076147010 * sdt
+        b2 = -0.0041960863 * ldt2 - 0.7034186147 * mdt2 + 1.7076147010 * sdt2
 
         u_b = b1 / (b1 * b1 - 0.5 * b_ * b2)
         t_b = -b_ * u_b
@@ -231,11 +287,13 @@ def _find_gamut_intersection(a_, b_, L1, C1, L0, cusp):
 
     return t
 
+
 def _toe2(x):
     k1 = 0.250  # normally 0.206 but 0.250 is more consistent with CIELAB, which is known for its accurate lightness
     k2 = 0.03
     k3 = (1.0 + k1) / (1.0 + k2)
     return 0.5 * (k3 * x - k1 + math.sqrt((k3 * x - k1) ** 2 + 4 * k2 * k3 * x))
+
 
 def _toe_inv2(x):
     k1 = 0.250  # normally 0.206 but 0.250 is more consistent with CIELAB, which is known for its accurate lightness
@@ -243,17 +301,21 @@ def _toe_inv2(x):
     k3 = (1.0 + k1) / (1.0 + k2)
     return (x * x + k1 * x) / (k3 * (x + k2))
 
+
 def rgb_to_corrected_oklab(rgb):
     L, a, b = rgb_to_oklab(rgb)
     return (_toe2(L), a, b)
+
 
 def _tc_untoe2(lab):
     Lr, a, b = lab
     L = _toe_inv2(max(0.0, min(1.0, Lr)))
     return (L, a, b)
 
+
 def corrected_oklab_to_rgb(lab):
     return oklab_gc_to_rgb(_tc_untoe2(lab))
+
 
 def oklab_gc_to_rgb(lab):
     L, a, b = lab
@@ -281,9 +343,11 @@ def oklab_gc_to_rgb(lab):
     b8 = clamp(0, 255, int(_linear_to_srgb(max(0, b)) * 255 + 0.5))
     return (r8, g8, b8)
 
+
 def adjust_lightness_lab(lab, percent_delta: int):
     l, a, b = lab
     return (clamp(0, 100, l + percent_delta), a, b)
+
 
 def adjust_lightness_oklab(oklab, percent_delta: int):
     l, a, b = oklab
@@ -291,15 +355,17 @@ def adjust_lightness_oklab(oklab, percent_delta: int):
 
 
 COLORSPACES = {
-    "lab":   (rgb_to_lab, lab_to_rgb, adjust_lightness_lab),
+    "lab": (rgb_to_lab, lab_to_rgb, adjust_lightness_lab),
     "oklab": (rgb_to_corrected_oklab, corrected_oklab_to_rgb, adjust_lightness_oklab),
 }
 
 DEFAULT_COLORSPACE = "lab"
 to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[DEFAULT_COLORSPACE]
 
+
 def adjust_lightness_rgb(rgb, percent_delta: int):
     return from_colorspace(adjust_lightness(to_colorspace(rgb), percent_delta))
+
 
 class Style:
     def __init__(
@@ -328,50 +394,59 @@ class Style:
 
     def clone(self):
         return Style(
-            bold = self.bold,
-            italic = self.italic,
-            underline = self.underline,
-            dim = self.dim,
-            blink = self.blink,
-            reverse = self.reverse,
-            hidden = self.hidden,
-            strikethrough = self.strikethrough,
-            fg = self.fg,
-            bg = self.bg,
+            bold=self.bold,
+            italic=self.italic,
+            underline=self.underline,
+            dim=self.dim,
+            blink=self.blink,
+            reverse=self.reverse,
+            hidden=self.hidden,
+            strikethrough=self.strikethrough,
+            fg=self.fg,
+            bg=self.bg,
         )
-    
+
     def apply(self, text):
         codes = []
-        
-        if self.bold: codes.append('1')
-        if self.dim: codes.append('2')
-        if self.italic: codes.append('3')
-        if self.underline: codes.append('4')
-        if self.blink: codes.append('5')
-        if self.reverse: codes.append('7')
-        if self.hidden: codes.append('8')
-        if self.strikethrough: codes.append('9')
+
+        if self.bold:
+            codes.append("1")
+        if self.dim:
+            codes.append("2")
+        if self.italic:
+            codes.append("3")
+        if self.underline:
+            codes.append("4")
+        if self.blink:
+            codes.append("5")
+        if self.reverse:
+            codes.append("7")
+        if self.hidden:
+            codes.append("8")
+        if self.strikethrough:
+            codes.append("9")
 
         for color, is_fg in ((self.fg, True), (self.bg, False)):
             if color is not None:
                 offset = 0 if is_fg else 10
                 if isinstance(color, str):
                     r, g, b = hex_to_rgb(color)
-                    codes.append(f'{38 + offset};2;{r};{g};{b}')
+                    codes.append(f"{38 + offset};2;{r};{g};{b}")
                 elif isinstance(color, tuple):
                     r, g, b = color
-                    codes.append(f'{38 + offset};2;{r};{g};{b}')
+                    codes.append(f"{38 + offset};2;{r};{g};{b}")
                 elif color < 8:
                     codes.append(str(30 + offset + color))
                 elif color < 16:
                     codes.append(str(90 + offset + (color - 8)))
                 else:
-                    codes.append(f'{38 + offset};5;{color}')
+                    codes.append(f"{38 + offset};5;{color}")
 
         if not codes:
             return text
 
         return f"\033[{';'.join(codes)}m{text}\033[0m"
+
 
 class Block:
     @staticmethod
@@ -413,17 +488,17 @@ class Block:
         if width is not None:
             for i, line in enumerate(self.lines):
                 self.lines[i] = (line[0], width)
-    
+
     def append(self, content, width=None):
         if width is None:
             width = len(content)
         self.lines.append((content, width))
         return self
-    
+
     def extend(self, block):
         self.lines.extend(block.lines)
         return self
-    
+
     @staticmethod
     def _normalize_args(*args):
         blocks = []
@@ -447,10 +522,11 @@ class Block:
                 child.lines.append((s, len(s)))
                 blocks.append(child)
         return blocks
-    
+
     def print(self):
         for content, _ in self.lines:
             print(content)
+
 
 def generate_base16_extras(theme):
     bg_lab = to_colorspace(theme.bg)
@@ -468,8 +544,10 @@ def generate_base16_extras(theme):
 
     theme[8] = from_colorspace(adjust_lightness(bg_lab, (-20 if light else 20)))
 
+
 def lerp_lab(t, lab1, lab2):
     return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
+
 
 def generate_256_palette(base16, bg=None, fg=None, harmonious=True):
     bg_lab = to_colorspace(bg) if bg else to_colorspace(base16[0])
@@ -534,6 +612,7 @@ class Theme:
     def selection(self):
         return self.greyscale(5)
 
+
 def parse_theme(fname):
     hex_key_re = re.compile(r"([a-z0-9]+[^a-z0-9].*)([a-f0-9]{6})")
     int_key_re = re.compile(r"([a-z0-9]+[^a-z0-9].*?)([0-9]+)")
@@ -553,8 +632,8 @@ def parse_theme(fname):
 
     palette = [hex_to_rgb(c) for c in BASELINE_BASE_16[:8]] + [None for _ in range(8)]
     name = None
-    fg=None
-    bg=None
+    fg = None
+    bg = None
     idx = 0
 
     with open(fname) as f:
@@ -624,21 +703,19 @@ def parse_theme(fname):
             palette_group = None
         elif "dim" in line or "faint" in line:
             palette_group = "dim"
-    
+
     for i in range(8):
         color = palette[i]
         assert color
         bright = palette[i + 8]
         if bright is None:
             palette[i + 8] = palette[i]
-    
+
     instance = Theme(
-        name or os.path.split(os.path.splitext(fname)[0])[-1],
-        palette,
-        bg=bg,
-        fg=fg
+        name or os.path.split(os.path.splitext(fname)[0])[-1], palette, bg=bg, fg=fg
     )
     return instance
+
 
 def apply_color(type_index, palette_index, color):
     codes = [str(type_index)]
@@ -647,6 +724,7 @@ def apply_color(type_index, palette_index, color):
     codes.append("rgb:" + "/".join(f"{c:02x}" for c in color))
     print(f"\033]{';'.join(codes)}\033\\", end="")
 
+
 def apply_theme(theme):
     for i, color in enumerate(theme.palette):
         apply_color(4, i, color)
@@ -654,16 +732,18 @@ def apply_theme(theme):
     apply_color(11, None, theme.bg)
     apply_color(12, None, theme.fg)
 
+
 def generate_base8_theme(theme):
-    buffer = [];
+    buffer = []
     buffer.append("#%s" % rgb_to_hex(theme.bg))
     for i in range(1, 7):
         buffer.append("#%s" % rgb_to_hex(theme[i]))
     buffer.append("#%s" % rgb_to_hex(theme.fg))
     return "\n".join(buffer)
 
+
 def generate_kitty_theme(theme):
-    buffer = [];
+    buffer = []
     buffer.append("background #%s" % rgb_to_hex(theme.bg))
     buffer.append("foreground #%s" % rgb_to_hex(theme.fg))
     buffer.append("cursor #%s" % rgb_to_hex(theme.fg))
@@ -673,8 +753,9 @@ def generate_kitty_theme(theme):
         buffer.append("color%d #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
+
 def generate_ghostty_theme(theme):
-    buffer = [];
+    buffer = []
     buffer.append("background = #%s" % rgb_to_hex(theme.bg))
     buffer.append("foreground = #%s" % rgb_to_hex(theme.fg))
     buffer.append("cursor = #%s" % rgb_to_hex(theme.fg))
@@ -684,33 +765,40 @@ def generate_ghostty_theme(theme):
         buffer.append("palette = %d = #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
+
 def generate_wezterm_theme(theme):
-    buffer = [];
+    buffer = []
     buffer.append("colors = {")
     buffer.append('    background = "#%s",' % rgb_to_hex(theme.bg))
     buffer.append('    foreground = "#%s",' % rgb_to_hex(theme.fg))
     buffer.append('    cursor_bg = "#%s",' % rgb_to_hex(theme.fg))
     buffer.append('    cursor_border = "#%s",' % rgb_to_hex(theme.fg))
-    buffer.append('    ansi = {')
+    buffer.append("    ansi = {")
     for i in range(0, 8):
         buffer.append('        "#%s",' % rgb_to_hex(theme[i]))
-    buffer.append('    },')
-    buffer.append('    brights = {')
+    buffer.append("    },")
+    buffer.append("    brights = {")
     for i in range(8, 16):
         buffer.append('        "#%s",' % rgb_to_hex(theme[i]))
-    buffer.append('    },')
-    buffer.append('    indexed = {')
+    buffer.append("    },")
+    buffer.append("    indexed = {")
     for i in range(16, 256):
         buffer.append('        [%d] = "#%s",' % (i, rgb_to_hex(theme[i])))
-    buffer.append('    }')
-    buffer.append('}')
+    buffer.append("    }")
+    buffer.append("}")
     return "\n".join(buffer)
+
 
 def generate_alacritty_theme(theme):
     buffer = []
     buffer.append("[colors]")
-    buffer.append("cursor = { text = 'CellForeground', cursor = '#%s' }" % rgb_to_hex(theme.fg))
-    buffer.append("selection = { text = 'CellForeground', background = '#%s' }" % rgb_to_hex(theme.selection))
+    buffer.append(
+        "cursor = { text = 'CellForeground', cursor = '#%s' }" % rgb_to_hex(theme.fg)
+    )
+    buffer.append(
+        "selection = { text = 'CellForeground', background = '#%s' }"
+        % rgb_to_hex(theme.selection)
+    )
     buffer.append("indexed_colors = [")
     for i in range(16, 256):
         buffer.append("    { index = %d, color = '#%s' }," % (i, rgb_to_hex(theme[i])))
@@ -719,13 +807,23 @@ def generate_alacritty_theme(theme):
     buffer.append("background = '#%s'" % rgb_to_hex(theme.bg))
     buffer.append("foreground = '#%s'" % rgb_to_hex(theme.fg))
     buffer.append("[colors.normal]")
-    color_names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+    color_names = [
+        "black",
+        "red",
+        "green",
+        "yellow",
+        "blue",
+        "magenta",
+        "cyan",
+        "white",
+    ]
     for i in range(0, 8):
         buffer.append("%s = '#%s'" % (color_names[i], rgb_to_hex(theme[i])))
     buffer.append("[colors.bright]")
     for i in range(8, 16):
-        buffer.append("%s = '#%s'" % (color_names[i-8], rgb_to_hex(theme[i])))
+        buffer.append("%s = '#%s'" % (color_names[i - 8], rgb_to_hex(theme[i])))
     return "\n".join(buffer)
+
 
 def generate_foot_theme(theme):
     buffer = []
@@ -737,10 +835,11 @@ def generate_foot_theme(theme):
     for i in range(0, 8):
         buffer.append("regular%d=%s" % (i, rgb_to_hex(theme[i])))
     for i in range(8, 16):
-        buffer.append("bright%d=%s" % (i-8, rgb_to_hex(theme[i])))
+        buffer.append("bright%d=%s" % (i - 8, rgb_to_hex(theme[i])))
     for i in range(16, 256):
         buffer.append("%d=%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
+
 
 # https://github.com/Roliga/urxvt-xresources-256
 def generate_xresources_theme(theme):
@@ -752,6 +851,7 @@ def generate_xresources_theme(theme):
         buffer.append("*.color%d: #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
+
 def generate_st_theme(theme):
     buffer = []
     buffer.append("static const char *colorname[] = {")
@@ -760,10 +860,11 @@ def generate_st_theme(theme):
     buffer.append('\t"#%s",' % rgb_to_hex(theme.bg))
     buffer.append('\t"#%s",' % rgb_to_hex(theme.fg))
     buffer.append("};")
-    buffer.append("unsigned int defaultbg = 256;");
-    buffer.append("unsigned int defaultfg = 257;");
-    buffer.append("static unsigned int defaultcs = 257;");
+    buffer.append("unsigned int defaultbg = 256;")
+    buffer.append("unsigned int defaultfg = 257;")
+    buffer.append("static unsigned int defaultcs = 257;")
     return "\n".join(buffer)
+
 
 def generate_tabby_theme(theme):
     buffer = []
@@ -777,17 +878,87 @@ def generate_tabby_theme(theme):
         buffer.append("  - '#%s'" % rgb_to_hex(theme[i]))
     return "\n".join(buffer)
 
+
+def _build_semantic_palette(theme, theme_name_override=None):
+    colors = ["#" + rgb_to_hex(theme[i]) for i in range(16)]
+    bg = "#" + rgb_to_hex(theme.bg)
+    fg = "#" + rgb_to_hex(theme.fg)
+    accent = colors[4]
+
+    palette = {
+        "theme_name": theme_name_override or theme.name,
+        "bg": bg,
+        "fg": fg,
+        "accent": accent,
+        "bg_nh": bg.lstrip("#"),
+        "fg_nh": fg.lstrip("#"),
+        "accent_nh": accent.lstrip("#"),
+        "idx_bg": str(nearest_xterm_index(hex_to_rgb(bg))),
+        "idx_fg": str(nearest_xterm_index(hex_to_rgb(fg))),
+        "idx_accent": str(nearest_xterm_index(hex_to_rgb(accent))),
+    }
+
+    for i, color in enumerate(colors):
+        palette[f"color{i}"] = color
+        palette[f"color{i}_nh"] = color.lstrip("#")
+        palette[f"idx{i}"] = str(nearest_xterm_index(hex_to_rgb(color)))
+
+    semantic_defaults = {
+        "base": colors[0],
+        "surface": colors[0],
+        "overlay": colors[8],
+        "muted": colors[8],
+        "subtle": fg,
+        "text": fg,
+        "primary": colors[4],
+        "secondary": colors[5],
+        "success": colors[2],
+        "warning": colors[3],
+        "critical": colors[1],
+        "info": colors[6],
+        "highlightlow": colors[0],
+        "highlightmed": colors[8],
+        "highlighthigh": colors[7],
+        "indicator": accent,
+    }
+    palette.update(semantic_defaults)
+    return palette
+
+
+def generate_semantic_json(theme, theme_name_override=None):
+    return json.dumps(
+        _build_semantic_palette(theme, theme_name_override=theme_name_override),
+        indent=2,
+    )
+
+
 GENERATE_LOOKUP = {
-    'base8': generate_base8_theme,
-    'kitty': generate_kitty_theme,
-    'ghostty': generate_ghostty_theme,
-    'wezterm': generate_wezterm_theme,
-    'alacritty': generate_alacritty_theme,
-    'foot': generate_foot_theme,
-    'xresources': generate_xresources_theme,
-    'st': generate_st_theme,
-    'tabby': generate_tabby_theme,
+    "base8": generate_base8_theme,
+    "kitty": generate_kitty_theme,
+    "ghostty": generate_ghostty_theme,
+    "wezterm": generate_wezterm_theme,
+    "alacritty": generate_alacritty_theme,
+    "foot": generate_foot_theme,
+    "xresources": generate_xresources_theme,
+    "st": generate_st_theme,
+    "tabby": generate_tabby_theme,
+    "semantic-json": generate_semantic_json,
 }
+
+
+def list_theme_files(themes_dir):
+    if not os.path.isdir(themes_dir):
+        return []
+    out = []
+    for name in os.listdir(themes_dir):
+        full = os.path.join(themes_dir, name)
+        if not os.path.isfile(full):
+            continue
+        if not name.endswith(".txt"):
+            continue
+        out.append((name[:-4], full))
+    return sorted(out, key=lambda item: item[0])
+
 
 def preview_theme(name, palette, fg=None, bg=None):
     def color_str(index, text, background=True):
@@ -799,7 +970,7 @@ def preview_theme(name, palette, fg=None, bg=None):
             g_idx = (idx // 6) % 6
             b_idx = idx % 6
             dark = r_idx < 4 and g_idx < 4 and b_idx < 4
-        
+
         elif 232 <= index <= 255:
             grey_level = index - 232
             dark = grey_level < 11
@@ -809,7 +980,10 @@ def preview_theme(name, palette, fg=None, bg=None):
             if dark:
                 return Block(Style(fg=fg, bg=rgb_color).apply(text), width=len(text))
             else:
-                return Block(Style(fg=rgb_color, bg=bg, reverse=True).apply(text), width=len(text))
+                return Block(
+                    Style(fg=rgb_color, bg=bg, reverse=True).apply(text),
+                    width=len(text),
+                )
         else:
             return Block(Style(fg=rgb_color, bg=bg).apply(text), width=len(text))
 
@@ -824,19 +998,21 @@ def preview_theme(name, palette, fg=None, bg=None):
 
         step = 1 if from_idx < to_idx else -1
         r = range(from_idx, to_idx + step, step)
-        
+
         blocks = []
         for i in r:
             ansi_color = ansi_greyscale_index(i)
-            
+
             brightness = i / 24
             brightness_char = "%x" % min(15, int(brightness * 16))
-            
+
             blocks.append(color_str(ansi_color, f" {brightness_char} "))
-        
+
         return Block.vertical(*blocks) if vertical else Block.horizontal(*blocks)
 
-    def color_slices_block(depth=3, vertical=True, final=False, black=False, reverse=False, background=True):
+    def color_slices_block(
+        depth=3, vertical=True, final=False, black=False, reverse=False, background=True
+    ):
         def color_slice_block(*colors):
             blocks = []
             for i in range(0 if black else 1, 6):
@@ -847,11 +1023,13 @@ def preview_theme(name, palette, fg=None, bg=None):
                     indexes[2] += i if b_enable else 0
                 for i in range(len(indexes)):
                     indexes[i] //= len(colors)
-                r, g, b = indexes;
+                r, g, b = indexes
                 index = 16 + r * 36 + g * 6 + b
                 brightness = (r + g + b) / 15
                 brightness_char = "%x" % int(brightness * 16)
-                blocks.append(color_str(index, " " + brightness_char + " ", background=background))
+                blocks.append(
+                    color_str(index, " " + brightness_char + " ", background=background)
+                )
             for i in range(1, 5 + final):
                 indexes = [0, 0, 0]
                 for r_enable, g_enable, b_enable in colors:
@@ -860,11 +1038,13 @@ def preview_theme(name, palette, fg=None, bg=None):
                     indexes[2] += 5 if b_enable else i
                 for i in range(len(indexes)):
                     indexes[i] //= len(indexes)
-                r, g, b = indexes;
+                r, g, b = indexes
                 index = 16 + r * 36 + g * 6 + b
                 brightness = (r + g + b) / 16
                 brightness_char = "%x" % int(brightness * 16)
-                blocks.append(color_str(index, " " + brightness_char + " ", background=background))
+                blocks.append(
+                    color_str(index, " " + brightness_char + " ", background=background)
+                )
             if reverse:
                 blocks.reverse()
             return Block.vertical(blocks)
@@ -877,7 +1057,7 @@ def preview_theme(name, palette, fg=None, bg=None):
             (False, False, True),
             (True, False, True),
         ]
-        
+
         slices = []
         for i in range(len(colors)):
             current = colors[i]
@@ -895,79 +1075,132 @@ def preview_theme(name, palette, fg=None, bg=None):
             Block.horizontal(
                 Block.vertical(grey_block(24, 6, vertical=True)),
                 Block.vertical(
-                    color_slices_block(reverse=True, vertical=False, final=True, depth=3),
-                    color_slices_block(reverse=False, vertical=False, depth=3, black=False, background=False),
-                    gap=0
+                    color_slices_block(
+                        reverse=True, vertical=False, final=True, depth=3
+                    ),
+                    color_slices_block(
+                        reverse=False,
+                        vertical=False,
+                        depth=3,
+                        black=False,
+                        background=False,
+                    ),
+                    gap=0,
                 ),
                 Block.vertical(grey_block(24, 6, vertical=True)),
-                gap=0
+                gap=0,
             ),
             Block.horizontal(
                 grey_block(5, 0, vertical=False),
                 color_str(None, name[:24].center(24)),
                 grey_block(0, 5, vertical=False),
-                gap=0
+                gap=0,
             ),
-            gap=0
+            gap=0,
         ),
         Block.vertical(
             Block(""),
-            (Block.horizontal(
-                 color_str(i, " %x " % i, background=True),
-                 color_str(i + 8, " %x " % (i + 8), background=True)
-            ) for i in range(8)),
+            (
+                Block.horizontal(
+                    color_str(i, " %x " % i, background=True),
+                    color_str(i + 8, " %x " % (i + 8), background=True),
+                )
+                for i in range(8)
+            ),
             Block(""),
             Block(""),
-            (Block.horizontal(
-                 color_str(i, " %x " % i, background=False),
-                 color_str(i + 8, " %x " % (i + 8), background=False)
-            ) for i in range(8)),
+            (
+                Block.horizontal(
+                    color_str(i, " %x " % i, background=False),
+                    color_str(i + 8, " %x " % (i + 8), background=False),
+                )
+                for i in range(8)
+            ),
             Block(""),
-        ), gap=3
+        ),
+        gap=3,
     ).print()
 
 
 BASELINE_BASE_16 = [
-    "000000", "cc0403", "19cb00", "cecb00",
-    "0d73cc", "cb1ed1", "0dcdcd", "dddddd",
-    "767676", "f2201f", "23fd00", "fffd00",
-    "1a8fff", "fd28ff", "14ffff", "ffffff",
+    "000000",
+    "cc0403",
+    "19cb00",
+    "cecb00",
+    "0d73cc",
+    "cb1ed1",
+    "0dcdcd",
+    "dddddd",
+    "767676",
+    "f2201f",
+    "23fd00",
+    "fffd00",
+    "1a8fff",
+    "fd28ff",
+    "14ffff",
+    "ffffff",
 ]
 
 BASELINE_RGB = [
-    (0 if r == 0 else 55 + r * 40,
-     0 if g == 0 else 55 + g * 40,
-     0 if b == 0 else 55 + b * 40)
+    (
+        0 if r == 0 else 55 + r * 40,
+        0 if g == 0 else 55 + g * 40,
+        0 if b == 0 else 55 + b * 40,
+    )
     for r in range(6)
     for g in range(6)
     for b in range(6)
 ]
 
-BASELINE_GREYSCALE = [
-    (8 + i * 10, 8 + i * 10, 8 + i * 10)
-    for i in range(24)
-]
+BASELINE_GREYSCALE = [(8 + i * 10, 8 + i * 10, 8 + i * 10) for i in range(24)]
 
-BASELINE_THEME = Theme("Default",
-    [hex_to_rgb(c) for c in BASELINE_BASE_16] + BASELINE_RGB + BASELINE_GREYSCALE)
+BASELINE_THEME = Theme(
+    "Default",
+    [hex_to_rgb(c) for c in BASELINE_BASE_16] + BASELINE_RGB + BASELINE_GREYSCALE,
+)
+
 
 def main():
     parser = argparse.ArgumentParser()
+    default_themes_dir = os.path.join(os.path.dirname(__file__), "themes")
     parser.add_argument("filenames", nargs="*")
+    parser.add_argument("--theme", type=str)
+    parser.add_argument("--themes-dir", type=str, default=default_themes_dir)
+    parser.add_argument("--list", action="store_true")
     parser.add_argument("--generate", choices=GENERATE_LOOKUP)
     parser.add_argument("--output", type=str)
+    parser.add_argument("--theme-name", type=str)
     parser.add_argument("--baseline", action="store_true")
     parser.add_argument("--adjust-lightness", type=int)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--colorspace", choices=COLORSPACES, default=DEFAULT_COLORSPACE)
-    parser.add_argument("--harmonious", default=True, action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "--harmonious", default=True, action=argparse.BooleanOptionalAction
+    )
     parser.add_argument("--test", action="store_true")
     ns = parser.parse_args()
 
     global to_colorspace, from_colorspace, adjust_lightness
     to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[ns.colorspace]
 
-    themes = list(map(parse_theme, ns.filenames))
+    discovered_themes = dict(list_theme_files(ns.themes_dir))
+
+    if ns.list:
+        for name in discovered_themes:
+            print(name)
+        return
+
+    input_filenames = list(ns.filenames)
+    if ns.theme:
+        if os.path.isfile(ns.theme):
+            input_filenames.append(ns.theme)
+        elif ns.theme in discovered_themes:
+            input_filenames.append(discovered_themes[ns.theme])
+        else:
+            print(f"Theme '{ns.theme}' not found in {ns.themes_dir}", file=sys.stderr)
+            sys.exit(1)
+
+    themes = list(map(parse_theme, input_filenames))
 
     if ns.baseline:
         themes.append(BASELINE_THEME)
@@ -985,25 +1218,46 @@ def main():
             base8 = theme[:8]
             base8[0] = theme.bg
             base8[7] = theme.fg
-            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg, harmonious=ns.harmonious)
-    
+            theme.palette = generate_256_palette(
+                theme[:16], bg=theme.bg, fg=theme.fg, harmonious=ns.harmonious
+            )
+
     if ns.generate:
         if ns.output is not None:
             parent = ns.output or "."
             os.makedirs(parent, exist_ok=True)
             for theme in themes:
-                fname = os.path.join(ns.output or ".", theme.name + "." + ns.generate + ".txt")
+                fname = os.path.join(
+                    ns.output or ".", theme.name + "." + ns.generate + ".txt"
+                )
                 with open(fname, "w+") as f:
-                    f.write(GENERATE_LOOKUP[ns.generate](theme))
+                    if ns.generate == "semantic-json":
+                        f.write(
+                            GENERATE_LOOKUP[ns.generate](
+                                theme, theme_name_override=ns.theme_name
+                            )
+                        )
+                    else:
+                        f.write(GENERATE_LOOKUP[ns.generate](theme))
                     print("generated", fname)
         else:
             if len(themes) == 0:
                 print("No theme selected", file=sys.stderr)
                 exit(1)
             if len(themes) > 1:
-                print("Can only apply a generate theme unless --output is specified", file=sys.stderr)
+                print(
+                    "Can only apply a generate theme unless --output is specified",
+                    file=sys.stderr,
+                )
                 exit(1)
-            print(GENERATE_LOOKUP[ns.generate](themes[0]))
+            if ns.generate == "semantic-json":
+                print(
+                    GENERATE_LOOKUP[ns.generate](
+                        themes[0], theme_name_override=ns.theme_name
+                    )
+                )
+            else:
+                print(GENERATE_LOOKUP[ns.generate](themes[0]))
     elif ns.apply:
         if len(themes) == 0:
             print("No theme selected", file=sys.stderr)
@@ -1026,6 +1280,7 @@ def main():
                     print()
         else:
             preview_theme("Active Theme", list(range(256)))
+
 
 if __name__ == "__main__":
     main()

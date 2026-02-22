@@ -15,6 +15,12 @@ python3 color256.py --apply themes/century.dark.txt
 
 # generate a theme
 python3 color256.py --generate kitty themes/century.dark.txt > century.dark.conf
+
+# list bundled themes
+python3 color256.py --list
+
+# export semantic JSON payload for thememanager/templates
+python3 color256.py --generate semantic-json --theme gruvbox.dark
 ```
 
 Use `python3 color256.py --help` for more options and supported terminals.
