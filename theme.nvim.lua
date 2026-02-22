@@ -195,6 +195,7 @@ create_theme({
     CursorLineSign = "CursorLine",
     CursorLineFold = "CursorLine",
     CursorColumn = "CursorLine",
+    ColorColumn = "CursorLine",
 
     WildMenu = { bg = BLUE },
     MatchParen = { "GreyBg2", fg = MAGENTA },
