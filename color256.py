@@ -758,7 +758,7 @@ def generate_ghostty_theme(theme):
     buffer = []
     buffer.append("background = #%s" % rgb_to_hex(theme.bg))
     buffer.append("foreground = #%s" % rgb_to_hex(theme.fg))
-    buffer.append("cursor = #%s" % rgb_to_hex(theme.fg))
+    buffer.append("cursor-color = #%s" % rgb_to_hex(theme.fg))
     buffer.append("selection-background = #%s" % rgb_to_hex(theme.selection))
     buffer.append("selection-foreground = cell-foreground")
     for i in range(0, 256):
